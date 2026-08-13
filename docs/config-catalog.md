@@ -1049,6 +1049,14 @@ export interface PiAiCompatProfile {
   thinkingFormat?: PiAiThinkingFormat
   /** Whether the endpoint accepts `reasoning_effort`; absent keeps the catalog entry's, then pi-ai's baseURL-derived guess. */
   supportsReasoningEffort?: boolean
+  /**
+   * Whether replayed assistant messages must carry `reasoning_content`
+   * (an empty string when the history has none). Gateways that enforce
+   * thinking replay — the opencode zen endpoint is one — reject a later
+   * request whose thinking-mode assistant messages omit it; pi-ai's
+   * baseURL-derived guess only recognizes first-party DeepSeek endpoints.
+   */
+  requiresReasoningContentOnAssistantMessages?: boolean
 }
 
 /** One request modality a pi-ai model may accept. */

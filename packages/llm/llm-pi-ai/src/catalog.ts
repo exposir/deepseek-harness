@@ -196,6 +196,14 @@ export interface PiAiCompatProfile {
   thinkingFormat?: PiAiThinkingFormat
   /** Whether the endpoint accepts `reasoning_effort`; absent keeps the catalog entry's, then pi-ai's baseURL-derived guess. */
   supportsReasoningEffort?: boolean
+  /**
+   * Whether replayed assistant messages must carry `reasoning_content`
+   * (an empty string when the history has none). Gateways that enforce
+   * thinking replay — the opencode zen endpoint is one — reject a later
+   * request whose thinking-mode assistant messages omit it; pi-ai's
+   * baseURL-derived guess only recognizes first-party DeepSeek endpoints.
+   */
+  requiresReasoningContentOnAssistantMessages?: boolean
 }
 
 /** One configured model entry: an id plus the catalog fields it overrides. */
@@ -394,11 +402,15 @@ function resolveModelCompat(
 ): { compat: OpenAICompletionsCompat } | Record<string, never> {
   const thinkingFormat = entry.compat?.thinkingFormat ?? route?.thinkingFormat
   const supportsReasoningEffort = entry.compat?.supportsReasoningEffort ?? route?.supportsReasoningEffort
-  if (thinkingFormat === undefined && supportsReasoningEffort === undefined) return {}
+  const requiresReasoningContentOnAssistantMessages =
+    entry.compat?.requiresReasoningContentOnAssistantMessages ?? route?.requiresReasoningContentOnAssistantMessages
+  if (thinkingFormat === undefined && supportsReasoningEffort === undefined
+    && requiresReasoningContentOnAssistantMessages === undefined) return {}
   if (api !== 'openai-completions') {
-    if (entry.compat?.thinkingFormat !== undefined || entry.compat?.supportsReasoningEffort !== undefined) {
+    if (entry.compat?.thinkingFormat !== undefined || entry.compat?.supportsReasoningEffort !== undefined
+      || entry.compat?.requiresReasoningContentOnAssistantMessages !== undefined) {
       invalid(provider, `model "${entry.id}" sets compat reasoning switches, but its api is "${api}";`
-        + ' thinkingFormat and supportsReasoningEffort exist only on openai-completions')
+        + ' thinkingFormat, supportsReasoningEffort and requiresReasoningContentOnAssistantMessages exist only on openai-completions')
     }
     return {}
   }
@@ -414,6 +426,9 @@ function resolveModelCompat(
       ...inherited,
       ...thinkingFormat === undefined ? {} : { thinkingFormat },
       ...supportsReasoningEffort === undefined ? {} : { supportsReasoningEffort },
+      ...requiresReasoningContentOnAssistantMessages === undefined
+        ? {}
+        : { requiresReasoningContentOnAssistantMessages },
     },
   }
 }
