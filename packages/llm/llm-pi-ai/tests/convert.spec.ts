@@ -731,6 +731,28 @@ describe('mapStopReason / mapUsage', () => {
     }))).toMatchObject({ kind: 'error', failure: { code: 'INVALID_REQUEST' } })
   })
 
+  it('classifies a Kimi context-limit 401 as overflow, not AUTH, and shows the clean message', () => {
+    // Kimi rejects an over-limit request with HTTP 401 + invalid_authentication_error:
+    // pi-ai composes `"<status>: <json body>"` via error-body.ts formatProviderError.
+    const kimi = assistant({
+      stopReason: 'error',
+      errorMessage: '401: {"message":"k3-256k supports only 256K context.","type":"invalid_authentication_error"}',
+    })
+    expect(mapStopReason(kimi)).toEqual({
+      kind: 'error',
+      failure: {
+        message: 'k3-256k supports only 256K context.',
+        code: CONTEXT_WINDOW_EXCEEDED_CODE,
+      },
+    })
+    // A plain string body keeps the composed text (nothing to extract).
+    const plain = assistant({ stopReason: 'error', errorMessage: '401: k3-256k supports only 256K context.' })
+    expect(mapStopReason(plain)).toMatchObject({
+      kind: 'error',
+      failure: { code: CONTEXT_WINDOW_EXCEEDED_CODE },
+    })
+  })
+
   it.each([
     'other side closed',
     'HTTP2 request did not get a response',

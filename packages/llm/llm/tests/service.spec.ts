@@ -106,6 +106,11 @@ describe('LlmRuntime', () => {
     expect(isContextWindowExceededError('input is too long for this model')).toBe(true)
     expect(isContextWindowExceededError('request too large for model context')).toBe(true)
     expect(isContextWindowExceededError('input exceeds the model context window limit')).toBe(true)
+    // Capacity-claim wording: Kimi rejects an over-limit request with
+    // "k3-256k supports only 256K context." as an HTTP 401.
+    expect(isContextWindowExceededError('k3-256k supports only 256K context.')).toBe(true)
+    expect(isContextWindowExceededError('This model supports 128K tokens of context.')).toBe(true)
+    expect(isContextWindowExceededError('context window is limited to 256000 tokens')).toBe(true)
   })
 
   it('does not mistake unrelated input validation for context-window overflow', () => {
