@@ -39,11 +39,14 @@ export interface DeepSeekCatalogModel {
   /** Per-request output cap for this model; omission falls back to the profile's {@link DeepSeekConnectionOptions.maxTokens}. */
   maxTokens?: number
   /**
-   * Input modalities the endpoint accepts; absent (or the built-in defaults)
-   * means text-only. Declaring `image` lets the host admit images that a
-   * vision-bridge plugin rewrites to prose before the wire request.
+   * Input modalities the endpoint accepts. Absent or empty means the
+   * DeepSeek family default `['text', 'image']`: the host admits images that
+   * a vision-bridge plugin rewrites to prose before the wire request (the
+   * wire serializer itself stays text-only). An explicit non-empty value —
+   * e.g. `['text']` — narrows the advertised capability for private
+   * endpoints that must refuse images at admission.
    */
-  input?: readonly ('text' | 'image')[]
+  input?: ('text' | 'image')[]
 }
 
 /**
@@ -116,7 +119,13 @@ function modelInfo(provider: string, model: DeepSeekCatalogModel): LlmModelInfo 
     id: model.id,
     name: model.name ?? model.id,
     ...model.description === undefined ? {} : { description: model.description },
-    inputModalities: model.input ?? ['text'],
+    // Official wire is text-only, but a vision-bridge rewrites images to
+    // prose before serialize. Advertise image so host admission lets the
+    // pixels in; serialize still rejects leftover image blocks. An omitted
+    // or empty catalog `input` is the same as the default DeepSeek family.
+    inputModalities: model.input !== undefined && model.input.length > 0
+      ? model.input
+      : ['text', 'image'],
   }
 }
 
@@ -188,12 +197,10 @@ export class DeepSeekAdapter extends LlmAdapter {
     const contextWindow = configured?.contextWindow
       ?? connection.defaultContextWindow
     return Promise.resolve({
-      // The chat-completions wire route is text-only regardless of catalog
-      // membership, so the uncatalogued fallback declares the same negative
-      // capability — "unknown" here would let the host accept and persist
-      // images the serializer must then reject.
+      // Uncatalogued DeepSeek ids still admit images: a vision-bridge rewrites
+      // them to prose before the text-only chat-completions serializer runs.
       ...configured === undefined
-        ? { provider, id: model, name: model, inputModalities: ['text' as const] }
+        ? { provider, id: model, name: model, inputModalities: ['text' as const, 'image' as const] }
         : modelInfo(provider, configured),
       context: { contextWindow },
       defaultMaxTokens: configured?.maxTokens ?? connection.maxTokens,
