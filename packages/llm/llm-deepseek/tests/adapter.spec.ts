@@ -389,6 +389,18 @@ describe('DeepSeekAdapter against a mock server', () => {
     expect(httpErrorCode(413, { code: 'context_length_exceeded' })).toBe('HTTP_413')
   })
 
+  it('lets a 401/403 body name context overflow or quota instead of AUTH', () => {
+    expect(httpErrorCode(401, {
+      type: 'invalid_authentication_error',
+      message: 'k3-256k supports only 256K context.',
+    })).toBe(CONTEXT_WINDOW_EXCEEDED_CODE)
+    expect(httpErrorCode(403, { code: 'insufficient_quota', message: 'account credits exhausted' }))
+      .toBe(QUOTA_EXCEEDED_CODE)
+    // A bare 401/403 — or one whose body names nothing else — is still AUTH.
+    expect(httpErrorCode(401, { message: 'bad key' })).toBe('AUTH')
+    expect(httpErrorCode(403)).toBe('AUTH')
+  })
+
   it('distinguishes terminal quota exhaustion from transient HTTP 429 throttling', () => {
     expect(httpErrorCode(429, { code: 'insufficient_quota', message: 'account credits exhausted' }))
       .toBe(QUOTA_EXCEEDED_CODE)

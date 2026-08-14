@@ -130,14 +130,23 @@ function requestId(headers: Headers): ReturnType<typeof ProviderRequestId> | und
 }
 
 /**
- * Map an HTTP status to a stable LlmError code.
+ * Map an HTTP status and provider error body to a stable LlmError code.
+ *
+ * Some providers gate non-auth rejections (context overflow, exhausted quota)
+ * behind 401/403, so a body that names the real failure must win over the bare
+ * status there. Everywhere else the historical mapping is untouched: context
+ * overflow is recognized on 400 only, quota on any status.
  * @param status - status of a non-2xx provider response.
  * @param error - parsed provider error body, when available.
  * @returns the normalized harness error code.
  */
 export function httpErrorCode(status: number, error?: WireError['error']): string {
-  if (status === 401 || status === 403) return 'AUTH'
   const detail = [error?.code, error?.type, error?.message].filter(Boolean).join(' ')
+  if (status === 401 || status === 403) {
+    if (isContextWindowExceededError(detail)) return CONTEXT_WINDOW_EXCEEDED_CODE
+    if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
+    return 'AUTH'
+  }
   if (isQuotaExceededError(detail)) return QUOTA_EXCEEDED_CODE
   if (status === 429) return 'RATE_LIMIT'
   if (status === 400) {
