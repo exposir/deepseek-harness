@@ -71,6 +71,28 @@ const EXCEEDS_MODEL_CONTEXT = new RegExp(
 )
 
 /**
+ * Capacity-claim wording: providers that reject an over-limit request with a
+ * bare statement of the model's own capacity ("k3-256k supports only 256K
+ * context." — Kimi returns this as an HTTP 401) instead of an explicit
+ * "exceeded" sentence. The verb prefix keeps unrelated numeric statements from
+ * matching, and the claim only appears in error detail when the request failed
+ * against that capacity.
+ */
+const CAPACITY_CLAIM = new RegExp(
+  String.raw`\b(?:supports?|allows?|accepts?|limited?|restricted?|capped?)\s+`
+  + String.raw`(?:only\s+)?\d+(?:\.\d+)?(?:\s*[KMGTP](?:i?B?)?\s*)?`
+  + String.raw`(?:tokens?\s+of\s+)?context(?:\s+window)?\b`,
+  'i',
+)
+
+/** "context (window) limited to N" — the request exceeded the stated bound. */
+const CONTEXT_LIMITED_TO = new RegExp(
+  String.raw`\bcontext(?:\s+window)?\s+(?:is\s+)?(?:limited|restricted|capped)\s+to\s+`
+  + String.raw`\d+(?:\.\d+)?(?:\s*[KMGTP](?:i?B?)?\s*)?(?:tokens?)?\b`,
+  'i',
+)
+
+/**
  * Recognize the context-overflow wording used by OpenAI-compatible providers
  * and library adapters. Adapters pass all available provider code, type, and
  * message text so both thrown and in-band delivery styles share one classifier.
@@ -83,6 +105,8 @@ export function isContextWindowExceededError(detail: string): boolean {
     || TOO_LARGE_FOR_CONTEXT.test(detail)
     || /\b(?:input|prompt|request)\s+(?:is\s+)?too\s+(?:long|large)\s+for\s+(?:this|the)\s+model\b/i.test(detail)
     || EXCEEDS_MODEL_CONTEXT.test(detail)
+    || CAPACITY_CLAIM.test(detail)
+    || CONTEXT_LIMITED_TO.test(detail)
 }
 
 /**

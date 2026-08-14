@@ -37,6 +37,11 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
+  // Context overflow must win over HTTP-status matching: providers like Kimi
+  // reject an over-limit request with HTTP 401 ("k3-256k supports only 256K
+  // context.") rather than the conventional 400, and a 401 would otherwise
+  // classify as AUTH and hide the real failure from the user.
+  if (isContextWindowExceededError(message)) return CONTEXT_WINDOW_EXCEEDED_CODE
   if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
   if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'
@@ -62,6 +67,34 @@ function classifyPiAiError(message: string): string {
 }
 
 /**
+ * Extract the provider's own message from pi-ai's composed error text. pi-ai
+ * formats provider HTTP failures as `"<status>: <body>"` (error-body.ts
+ * `formatProviderError` without a prefix), where the body of an OpenAI-compatible
+ * provider is the parsed JSON error object. Projecting that wrapper verbatim
+ * buries the human-readable sentence ("k3-256k supports only 256K context.")
+ * behind a status code and a JSON dump, so pull the body's `message` out when
+ * the wrapper shape matches; anything else passes through untouched.
+ * @param errorMessage - pi-ai's composed provider error text.
+ * @returns the provider's own message when it can be extracted, otherwise the input.
+ */
+function extractProviderErrorDetail(errorMessage: string): string {
+  const match = /^(?:HTTP\s+)?\d{3}\s*:\s*(.+)$/s.exec(errorMessage)
+  if (match === null) return errorMessage
+  const candidate = (match[1] ?? '').trim()
+  if (!candidate.startsWith('{')) return errorMessage
+  try {
+    const parsed = JSON.parse(candidate) as unknown
+    if (typeof parsed === 'object' && parsed !== null) {
+      const message = (parsed as { message?: unknown }).message
+      if (typeof message === 'string' && message.length > 0) return message
+    }
+  } catch {
+    // Not JSON despite the brace — keep the composed text.
+  }
+  return errorMessage
+}
+
+/**
  * Map a terminal pi-ai event to the harness finish reason.
  * @param message - the assistant message carried by the `done` or `error` event.
  * @param contextWindow - resolved catalog capacity for usage-based overflow detection.
@@ -79,7 +112,9 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
     return {
       kind: 'error',
       failure: {
-        message: message.errorMessage ?? `pi-ai detected context overflow for model "${message.model}"`,
+        message: message.errorMessage === undefined
+          ? `pi-ai detected context overflow for model "${message.model}"`
+          : extractProviderErrorDetail(message.errorMessage),
         code: CONTEXT_WINDOW_EXCEEDED_CODE,
       },
     }
