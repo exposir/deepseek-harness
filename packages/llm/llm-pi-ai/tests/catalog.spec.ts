@@ -826,6 +826,50 @@ describe('reasoning-dispatch compat switches', () => {
       anthropic: { compat: { thinkingFormat: 'openai' } },
     })).toThrow(/no model on the route speaks openai-completions/)
   })
+
+  it('applies the thinking-replay switch per route, entries winning per field', () => {
+    const models = modelsOf({
+      'acme-gateway': {
+        api: 'openai-completions',
+        baseURL: 'https://acme.test',
+        compat: { requiresReasoningContentOnAssistantMessages: true },
+        models: [
+          { id: 'replay-default', reasoningEfforts: { off: null, high: 'high' } },
+          { id: 'replay-off', compat: { requiresReasoningContentOnAssistantMessages: false } },
+        ],
+      },
+    }, 'acme-gateway')
+
+    expect((models.get('replay-default')?.compat as OpenAICompletionsCompat).requiresReasoningContentOnAssistantMessages)
+      .toBe(true)
+    expect((models.get('replay-off')?.compat as OpenAICompletionsCompat).requiresReasoningContentOnAssistantMessages)
+      .toBe(false)
+  })
+
+  it('rejects a thinking-replay switch on a protocol that has no such field', () => {
+    expect(() => resolveProfiles({
+      anthropic: {
+        models: [{ id: 'claude-sonnet-4-5', compat: { requiresReasoningContentOnAssistantMessages: true } }],
+      },
+    })).toThrow(/exist only on openai-completions/)
+  })
+
+  it('applies the developer-role switch per route, entries winning per field', () => {
+    const models = modelsOf({
+      'acme-gateway': {
+        api: 'openai-completions',
+        baseURL: 'https://acme.test',
+        compat: { supportsDeveloperRole: false },
+        models: [
+          { id: 'role-default', reasoningEfforts: { off: null, high: 'high' } },
+          { id: 'role-on', compat: { supportsDeveloperRole: true } },
+        ],
+      },
+    }, 'acme-gateway')
+
+    expect((models.get('role-default')?.compat as OpenAICompletionsCompat).supportsDeveloperRole).toBe(false)
+    expect((models.get('role-on')?.compat as OpenAICompletionsCompat).supportsDeveloperRole).toBe(true)
+  })
 })
 
 describe('resolution snapshots', () => {

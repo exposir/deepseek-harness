@@ -35,6 +35,17 @@ describe('reasoning schema boundary', () => {
   it('rejects a thinking format outside the offered set', () => {
     expect(configWith({ compat: { thinkingFormat: 'quantum' } })).toThrow(/expected/)
   })
+
+  it('accepts the thinking-replay switch and rejects a non-boolean value', () => {
+    expect(configWith({ compat: { requiresReasoningContentOnAssistantMessages: true } })).not.toThrow()
+    expect(configWith({ compat: { requiresReasoningContentOnAssistantMessages: false } })).not.toThrow()
+    expect(configWith({ compat: { requiresReasoningContentOnAssistantMessages: 'yes' } })).toThrow(/expected/)
+  })
+
+  it('accepts the developer-role switch and rejects a non-boolean value', () => {
+    expect(configWith({ compat: { supportsDeveloperRole: false } })).not.toThrow()
+    expect(configWith({ compat: { supportsDeveloperRole: 'yes' } })).toThrow(/expected/)
+  })
 })
 
 describe('modality schema boundary', () => {
