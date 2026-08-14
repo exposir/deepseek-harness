@@ -204,6 +204,13 @@ export interface PiAiCompatProfile {
    * baseURL-derived guess only recognizes first-party DeepSeek endpoints.
    */
   requiresReasoningContentOnAssistantMessages?: boolean
+  /**
+   * Whether the endpoint accepts the `developer` message role. pi-ai's
+   * baseURL-derived guess defaults to true for unknown gateways, which
+   * rejects endpoints that only accept `system` — the Kimi coding API
+   * is one (its own catalog marks `supportsDeveloperRole: false`).
+   */
+  supportsDeveloperRole?: boolean
 }
 
 /** One configured model entry: an id plus the catalog fields it overrides. */
@@ -404,13 +411,16 @@ function resolveModelCompat(
   const supportsReasoningEffort = entry.compat?.supportsReasoningEffort ?? route?.supportsReasoningEffort
   const requiresReasoningContentOnAssistantMessages =
     entry.compat?.requiresReasoningContentOnAssistantMessages ?? route?.requiresReasoningContentOnAssistantMessages
+  const supportsDeveloperRole = entry.compat?.supportsDeveloperRole ?? route?.supportsDeveloperRole
   if (thinkingFormat === undefined && supportsReasoningEffort === undefined
-    && requiresReasoningContentOnAssistantMessages === undefined) return {}
+    && requiresReasoningContentOnAssistantMessages === undefined && supportsDeveloperRole === undefined) return {}
   if (api !== 'openai-completions') {
     if (entry.compat?.thinkingFormat !== undefined || entry.compat?.supportsReasoningEffort !== undefined
-      || entry.compat?.requiresReasoningContentOnAssistantMessages !== undefined) {
+      || entry.compat?.requiresReasoningContentOnAssistantMessages !== undefined
+      || entry.compat?.supportsDeveloperRole !== undefined) {
       invalid(provider, `model "${entry.id}" sets compat reasoning switches, but its api is "${api}";`
-        + ' thinkingFormat, supportsReasoningEffort and requiresReasoningContentOnAssistantMessages exist only on openai-completions')
+        + ' thinkingFormat, supportsReasoningEffort, requiresReasoningContentOnAssistantMessages and'
+        + ' supportsDeveloperRole exist only on openai-completions')
     }
     return {}
   }
@@ -429,6 +439,7 @@ function resolveModelCompat(
       ...requiresReasoningContentOnAssistantMessages === undefined
         ? {}
         : { requiresReasoningContentOnAssistantMessages },
+      ...supportsDeveloperRole === undefined ? {} : { supportsDeveloperRole },
     },
   }
 }

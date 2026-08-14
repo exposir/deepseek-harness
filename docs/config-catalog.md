@@ -1057,6 +1057,13 @@ export interface PiAiCompatProfile {
    * baseURL-derived guess only recognizes first-party DeepSeek endpoints.
    */
   requiresReasoningContentOnAssistantMessages?: boolean
+  /**
+   * Whether the endpoint accepts the `developer` message role. pi-ai's
+   * baseURL-derived guess defaults to true for unknown gateways, which
+   * rejects endpoints that only accept `system` — the Kimi coding API
+   * is one (its own catalog marks `supportsDeveloperRole: false`).
+   */
+  supportsDeveloperRole?: boolean
 }
 
 /** One request modality a pi-ai model may accept. */
