@@ -38,6 +38,12 @@ export interface DeepSeekCatalogModel {
   contextWindow?: number
   /** Per-request output cap for this model; omission falls back to the profile's {@link DeepSeekConnectionOptions.maxTokens}. */
   maxTokens?: number
+  /**
+   * Input modalities the endpoint accepts; absent (or the built-in defaults)
+   * means text-only. Declaring `image` lets the host admit images that a
+   * vision-bridge plugin rewrites to prose before the wire request.
+   */
+  input?: readonly ('text' | 'image')[]
 }
 
 /**
@@ -110,7 +116,7 @@ function modelInfo(provider: string, model: DeepSeekCatalogModel): LlmModelInfo 
     id: model.id,
     name: model.name ?? model.id,
     ...model.description === undefined ? {} : { description: model.description },
-    inputModalities: ['text'],
+    inputModalities: model.input ?? ['text'],
   }
 }
 
