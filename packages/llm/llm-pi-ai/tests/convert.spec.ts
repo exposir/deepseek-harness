@@ -753,6 +753,31 @@ describe('mapStopReason / mapUsage', () => {
     })
   })
 
+  it('extracts the message from an HTTP-prefixed wrapper and aligns quota with llm-deepseek', () => {
+    // Other pi-ai providers compose the wrapper with an "HTTP " prefix.
+    const prefixed = assistant({
+      stopReason: 'error',
+      errorMessage: 'HTTP 401: {"message":"k3-256k supports only 256K context.","type":"invalid_authentication_error"}',
+    })
+    expect(mapStopReason(prefixed)).toEqual({
+      kind: 'error',
+      failure: {
+        message: 'k3-256k supports only 256K context.',
+        code: CONTEXT_WINDOW_EXCEEDED_CODE,
+      },
+    })
+    // A 401 whose body names quota exhaustion is QUOTA, not AUTH — the same
+    // precedence llm-deepseek's httpErrorCode now applies.
+    const quota = assistant({
+      stopReason: 'error',
+      errorMessage: '401: {"message":"insufficient_quota","type":"quota_exceeded"}',
+    })
+    expect(mapStopReason(quota)).toMatchObject({
+      kind: 'error',
+      failure: { code: 'QUOTA' },
+    })
+  })
+
   it.each([
     'other side closed',
     'HTTP2 request did not get a response',

@@ -37,13 +37,15 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
-  // Context overflow must win over HTTP-status matching: providers like Kimi
-  // reject an over-limit request with HTTP 401 ("k3-256k supports only 256K
-  // context.") rather than the conventional 400, and a 401 would otherwise
-  // classify as AUTH and hide the real failure from the user.
+  // Body semantics win over HTTP-status matching: providers gate non-auth
+  // rejections (Kimi's "k3-256k supports only 256K context.", quota
+  // exhaustion) behind 401/403, and a status-first check would classify them
+  // as AUTH and hide the real failure from the user. mapStopReason already
+  // routes a recognized context overflow before this function, so these checks
+  // are also a defense for any future direct caller — the status match is last.
   if (isContextWindowExceededError(message)) return CONTEXT_WINDOW_EXCEEDED_CODE
-  if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
+  if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'
   if (/\b400\b|invalid.?request/i.test(message)) return 'INVALID_REQUEST'
   if (/\b5\d\d\b/.test(message)) return 'SERVER'
